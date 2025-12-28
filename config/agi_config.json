@@ -1,0 +1,195 @@
+{
+  "global": {
+    "app_name": "agi",
+    "version": "1.0.0",
+    "base_path": "/var/lib/agi",
+    "config_path": "/etc/agi",
+    "log_path": "/var/log/agi",
+    "template_path": "/usr/share/agi/templates",
+    "log_level": "INFO",
+    "daemonize": false,
+    "pid_file": "/var/run/agi.pid"
+  },
+  "environments": [
+    {
+      "name": "dev-env",
+      "description": "Development and testing environment",
+      "os_template": "debian",
+      "architecture": "x86_64",
+      "root_path": "/var/lib/agi/jails/dev-env",
+      "data_path": "/var/lib/agi/jails/dev-env/data",
+      "ssh": {
+        "port": 2201,
+        "listen_address": "127.0.0.1",
+        "root_password": "",
+        "password_auth": true,
+        "pubkey_auth": true,
+        "max_auth_tries": 3,
+        "client_alive_interval": 300,
+        "banner_message": "Welcome to LOTUS-AGI Development Environment"
+      },
+      "limits": {
+        "max_cpu_time": 300,
+        "max_memory": 524288,
+        "max_file_size": 1048576,
+        "max_processes": 64,
+        "max_open_files": 256
+      },
+      "mounts": [
+        {
+          "source": "/proc",
+          "target": "/proc",
+          "type": "proc",
+          "flags": 0,
+          "read_only": false
+        },
+        {
+          "source": "/sys",
+          "target": "/sys",
+          "type": "sysfs",
+          "flags": 0,
+          "read_only": false
+        },
+        {
+          "source": "/dev/pts",
+          "target": "/dev/pts",
+          "type": "devpts",
+          "flags": 0,
+          "read_only": false
+        }
+      ],
+      "users": [
+        {
+          "name": "developer",
+          "shell": "/bin/bash",
+          "home": "/home/developer",
+          "sudo": true
+        }
+      ],
+      "environment": {
+        "LANG": "en_US.UTF-8",
+        "TERM": "xterm-256color"
+      },
+      "init_script": "",
+      "cleanup_script": "",
+      "enabled": true
+    },
+    {
+      "name": "test-env",
+      "description": "Automated testing environment",
+      "os_template": "ubuntu",
+      "architecture": "x86_64",
+      "root_path": "/var/lib/agi/jails/test-env",
+      "data_path": "/var/lib/agi/jails/test-env/data",
+      "ssh": {
+        "port": 2202,
+        "listen_address": "127.0.0.1",
+        "password_auth": false,
+        "pubkey_auth": true,
+        "max_auth_tries": 3,
+        "client_alive_interval": 300,
+        "banner_message": "AGI Testing Environment - Authorized Access Only"
+      },
+      "limits": {
+        "max_cpu_time": 600,
+        "max_memory": 1048576,
+        "max_file_size": 2097152,
+        "max_processes": 128,
+        "max_open_files": 512
+      },
+      "mounts": [
+        {
+          "source": "/proc",
+          "target": "/proc",
+          "type": "proc",
+          "flags": 0,
+          "read_only": true
+        },
+        {
+          "source": "/sys",
+          "target": "/sys",
+          "type": "sysfs",
+          "flags": 0,
+          "read_only": true
+        }
+      ],
+      "users": [
+        {
+          "name": "tester",
+          "shell": "/bin/bash",
+          "home": "/home/tester",
+          "sudo": false
+        }
+      ],
+      "environment": {
+        "LANG": "C.UTF-8",
+        "TERM": "screen-256color"
+      },
+      "init_script": "/usr/share/agi/test-init.sh",
+      "cleanup_script": "",
+      "enabled": true
+    },
+    {
+      "name": "sandbox",
+      "description": "Secure sandbox environment",
+      "os_template": "alpine",
+      "architecture": "x86_64",
+      "root_path": "/var/lib/agi/jails/sandbox",
+      "data_path": "/var/lib/agi/jails/sandbox/data",
+      "ssh": {
+        "port": 2203,
+        "listen_address": "127.0.0.1",
+        "password_auth": false,
+        "pubkey_auth": true,
+        "max_auth_tries": 2,
+        "client_alive_interval": 60,
+        "banner_message": "AGI Sandbox - Restricted Environment"
+      },
+      "limits": {
+        "max_cpu_time": 60,
+        "max_memory": 262144,
+        "max_file_size": 102400,
+        "max_processes": 16,
+        "max_open_files": 64
+      },
+      "mounts": [
+        {
+          "source": "/proc",
+          "target": "/proc",
+          "type": "proc",
+          "flags": 0,
+          "read_only": true
+        }
+      ],
+      "users": [],
+      "environment": {
+        "LANG": "C",
+        "PATH": "/usr/bin:/bin"
+      },
+      "init_script": "",
+      "cleanup_script": "",
+      "enabled": true
+    }
+  ],
+  "templates": {
+    "debian": {
+      "packages": ["bash", "coreutils", "procps", "net-tools", "iputils-ping"],
+      "mirror": "http://deb.debian.org/debian"
+    },
+    "ubuntu": {
+      "packages": ["bash", "coreutils", "procps", "net-tools", "iputils-ping", "openssh-server"],
+      "mirror": "http://archive.ubuntu.com/ubuntu"
+    },
+    "alpine": {
+      "packages": ["bash", "alpine-base", "procps", "openssh"],
+      "mirror": "http://dl-cdn.alpinelinux.org/alpine"
+    }
+  },
+  "security": {
+    "allowed_mounts": ["/proc", "/sys", "/dev", "/tmp", "/home"],
+    "blocked_paths": ["/etc/shadow", "/etc/passwd", "/var/lib", "/var/run"],
+    "max_jail_size": 10737418240,
+    "enable_seccomp": true,
+    "enable_namespaces": true
+  }
+}
