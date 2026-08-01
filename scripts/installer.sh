@@ -264,7 +264,7 @@ do_uninstall() {
     
     if [[ $REPLY != "uninstall" ]]; then
         log_info "Uninstallation cancelled"
-        exit 0
+        return 0
     fi
     
     log_step "Starting uninstallation..."

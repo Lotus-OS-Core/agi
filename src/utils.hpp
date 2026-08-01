@@ -21,6 +21,9 @@
 #include <iomanip>
 #include <functional>
 #include <optional>
+#include <cerrno>
+#include <cstdio>
+#include <filesystem>
 #include <variant>
 
 namespace agi {
@@ -257,14 +260,24 @@ public:
      */
     static std::string jsonEscape(const std::string& str) {
         std::string result;
-        for (char c : str) {
+        for (unsigned char c : str) {
             switch (c) {
                 case '"':  result += "\\\""; break;
                 case '\\': result += "\\\\"; break;
+                case '\b': result += "\\b"; break;
+                case '\f': result += "\\f"; break;
                 case '\n': result += "\\n"; break;
                 case '\r': result += "\\r"; break;
                 case '\t': result += "\\t"; break;
-                default:   result += c; break;
+                default:
+                    if (c < 0x20) {
+                        char buf[8];
+                        snprintf(buf, sizeof(buf), "\\u%04x", c);
+                        result += buf;
+                    } else {
+                        result += c;
+                    }
+                    break;
             }
         }
         return result;
@@ -318,6 +331,37 @@ public:
     }
     
     /**
+     * @brief Read binary file content
+     * @param path File path
+     * @return File content as bytes
+     */
+    static std::string readBinary(const std::string& path) {
+        std::ifstream file(path, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::runtime_error("Cannot open file: " + path);
+        }
+        
+        std::ostringstream ss;
+        ss << file.rdbuf();
+        return ss.str();
+    }
+    
+    /**
+     * @brief Write binary file content
+     * @param path File path
+     * @param content Content bytes
+     * @return Whether successful
+     */
+    static bool writeBinary(const std::string& path, const std::string& content) {
+        std::ofstream file(path, std::ios::binary);
+        if (!file.is_open()) {
+            return false;
+        }
+        file.write(content.data(), content.size());
+        return file.good();
+    }
+    
+    /**
      * @brief Append content to file
      * @param path File path
      * @param content Content
@@ -351,9 +395,14 @@ public:
      * @return Whether successful
      */
     static bool removeRecursive(const std::string& path) {
-        // Use system command for recursive removal
-        std::string cmd = "rm -rf \"" + path + "\"";
-        return system(cmd.c_str()) == 0;
+        try {
+            if (std::filesystem::exists(path)) {
+                std::filesystem::remove_all(path);
+            }
+            return true;
+        } catch (const std::exception&) {
+            return false;
+        }
     }
 };
 

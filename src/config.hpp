@@ -282,7 +282,7 @@ private:
     
     JsonValue parseNumber() {
         size_t start = pos_;
-        bool hasDecimal = false;
+        [[maybe_unused]] bool hasDecimal = false;
         
         if (consume() == '-') {}
         else { --pos_; }
@@ -674,7 +674,25 @@ private:
                     const auto& userObj = userJson.asObject();
                     UserConfig user;
                     if (userObj.count("name")) user.name = userObj.at("name").asString();
+                    if (userObj.count("shell")) user.shell = userObj.at("shell").asString();
+                    if (userObj.count("home")) user.home = userObj.at("home").asString();
+                    if (userObj.count("sudo")) user.sudo = userObj.at("sudo").asBool();
                     env.users.push_back(user);
+                }
+            }
+            
+            // Mount configuration
+            if (envObj.count("mounts")) {
+                for (const auto& mountJson : envObj.at("mounts").asArray()) {
+                    if (!mountJson.isObject()) continue;
+                    const auto& mountObj = mountJson.asObject();
+                    MountPoint mp;
+                    if (mountObj.count("source")) mp.source = mountObj.at("source").asString();
+                    if (mountObj.count("target")) mp.target = mountObj.at("target").asString();
+                    if (mountObj.count("type")) mp.type = mountObj.at("type").asString();
+                    if (mountObj.count("flags")) mp.flags = static_cast<unsigned long>(mountObj.at("flags").asNumber());
+                    if (mountObj.count("read_only")) mp.read_only = mountObj.at("read_only").asBool();
+                    env.mounts.push_back(mp);
                 }
             }
             
@@ -683,33 +701,36 @@ private:
     }
     
     JsonValue serializeToJson() const {
-        JsonValue global(JsonValue::ValueType(std::map<std::string, JsonValue>{}));
-        global["base_path"] = config_.base_path;
-        global["log_path"] = config_.log_path;
-        global["template_path"] = config_.template_path;
-        global["log_level"] = config_.log_level;
-        global["daemonize"] = config_.daemonize;
+        std::map<std::string, JsonValue> globalMap;
+        globalMap["base_path"] = config_.base_path;
+        globalMap["log_path"] = config_.log_path;
+        globalMap["template_path"] = config_.template_path;
+        globalMap["log_level"] = config_.log_level;
+        globalMap["daemonize"] = config_.daemonize;
+        JsonValue global(globalMap);
         
-        JsonValue envArray(std::vector<JsonValue>{});
+        std::vector<JsonValue> envArrayVec;
         for (const auto& env : config_.environments) {
-            JsonValue envJson(std::map<std::string, JsonValue>{});
-            envJson["name"] = env.name;
-            envJson["description"] = env.description;
-            envJson["os_template"] = env.os_template;
-            envJson["architecture"] = env.architecture;
-            envJson["enabled"] = env.enabled;
+            std::map<std::string, JsonValue> envMap;
+            envMap["name"] = env.name;
+            envMap["description"] = env.description;
+            envMap["os_template"] = env.os_template;
+            envMap["architecture"] = env.architecture;
+            envMap["enabled"] = env.enabled;
             
-            JsonValue sshObj(std::map<std::string, JsonValue>{});
-            sshObj["port"] = env.ssh.port;
-            sshObj["listen_address"] = env.ssh.listen_address;
-            envJson["ssh"] = sshObj;
+            std::map<std::string, JsonValue> sshMap;
+            sshMap["port"] = static_cast<double>(env.ssh.port);
+            sshMap["listen_address"] = env.ssh.listen_address;
+            envMap["ssh"] = JsonValue(sshMap);
             
-            envArray.asArray().push_back(envJson);
+            envArrayVec.push_back(JsonValue(envMap));
         }
+        JsonValue envArray(envArrayVec);
         
-        JsonValue result(std::map<std::string, JsonValue>{});
-        result["global"] = global;
-        result["environments"] = envArray;
+        std::map<std::string, JsonValue> resultMap;
+        resultMap["global"] = global;
+        resultMap["environments"] = envArray;
+        JsonValue result(resultMap);
         
         return result;
     }

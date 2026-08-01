@@ -32,6 +32,7 @@
 #include <sys/stat.h>
 #include <sys/mount.h>
 #include <sys/resource.h>
+#include <sys/sysmacros.h>
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <arpa/inet.h>
@@ -440,8 +441,8 @@ private:
         }
         
         try {
-            std::string content = FileUtils::read(path);
-            FileUtils::write(dest, content);
+            std::string content = FileUtils::readBinary(path);
+            FileUtils::writeBinary(dest, content);
             chmod(dest.c_str(), 0755);
             log("DEBUG", "Copying binary: " + path + " -> " + dest);
         } catch (const std::exception& e) {
@@ -469,8 +470,8 @@ private:
                 }
                 
                 try {
-                    std::string content = FileUtils::read(lib);
-                    FileUtils::write(dest, content);
+                    std::string content = FileUtils::readBinary(lib);
+                    FileUtils::writeBinary(dest, content);
                     log("DEBUG", "Copying library: " + lib);
                 } catch (...) {
                     // Ignore errors
@@ -514,7 +515,7 @@ HostKey /etc/ssh/ssh_host_ecdsa_key
 HostKey /etc/ssh/ssh_host_ed25519_key
 PermitRootLogin yes
 PasswordAuthentication )" + (config_->ssh.password_auth ? "yes" : "no") + R"(
-PubkeyAuthentication )" + (config_->ssh.pubkey_auth ? "yes" : "no") + R(
+PubkeyAuthentication )" + (config_->ssh.pubkey_auth ? "yes" : "no") + R"(
 MaxAuthTries )" + std::to_string(config_->ssh.max_auth_tries) + R"(
 ClientAliveInterval )" + std::to_string(config_->ssh.client_alive_interval) + R"(
 ClientAliveCountMax 0
@@ -530,14 +531,14 @@ AcceptEnv LANG LC_*)";
     
     void createInitScripts() {
         // Create basic initialization script
-        std::string init_script = R"#!/bin/bash
-# Jail initialization script
-echo "Jail started at $(date)" > /var/log/jail.log
-mount -t proc proc /proc
-mount -t sysfs sys /sys
-mount -t devpts devpts /dev/pts
-)";
-        
+        std::string init_script =
+            "#!/bin/bash\n"
+            "# Jail initialization script\n"
+            "echo \"Jail started at \"$(date)\" > /var/log/jail.log\n"
+            "mount -t proc proc /proc\n"
+            "mount -t sysfs sys /sys\n"
+            "mount -t devpts devpts /dev/pts\n";
+
         FileUtils::write(jail_path_ + "/usr/share/agi/init.sh", init_script);
         chmod((jail_path_ + "/usr/share/agi/init.sh").c_str(), 0755);
     }
@@ -664,7 +665,7 @@ mount -t devpts devpts /dev/pts
             if (pid == 0) {
                 chroot(jail_path_.c_str());
                 chdir("/");
-                execlp("sh", "sh", init_script.c_str(), nullptr);
+                execlp("sh", "sh", "/usr/share/agi/init.sh", nullptr);
                 exit(1);
             } else if (pid > 0) {
                 waitpid(pid, nullptr, 0);
@@ -679,7 +680,7 @@ mount -t devpts devpts /dev/pts
             if (pid == 0) {
                 chroot(jail_path_.c_str());
                 chdir("/");
-                execlp("sh", "sh", cleanup_script.c_str(), nullptr);
+                execlp("sh", "sh", "/usr/share/agi/cleanup.sh", nullptr);
                 exit(1);
             } else if (pid > 0) {
                 waitpid(pid, nullptr, 0);

@@ -13,6 +13,7 @@
 #include <cstring>
 #include <unistd.h>
 #include <getopt.h>
+#include <thread>
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <pwd.h>
@@ -97,8 +98,29 @@ For more information see: man agi or /usr/share/doc/agi/
     /**
      * @brief Execute main program flow
      */
-    int run() {
-        // Check if running with root privileges
+    int run(const std::string& command) {
+        // Commands that do not require root or config
+        if (command == "help" || command == "--help" || command == "-h" ||
+            command == "version" || command == "--version") {
+            return 0;
+        }
+        
+        // init and validate only need root, not existing config
+        if (command == "init" || command == "validate") {
+            if (geteuid() != 0) {
+                std::cerr << "Error: AGI requires root privileges to run" << std::endl;
+                std::cerr << "Please use: sudo agi <command>" << std::endl;
+                return 1;
+            }
+            // Skip config loading - cmdInit creates config, cmdValidate loads its own
+            if (command == "init") {
+                initLogger("/var/log/agi/agi.log",
+                           verbose_ ? LogLevel::DEBUG : LogLevel::INFO);
+            }
+            return 0;
+        }
+        
+        // All other commands require root
         if (geteuid() != 0) {
             std::cerr << "Error: AGI requires root privileges to run" << std::endl;
             std::cerr << "Please use: sudo agi <command>" << std::endl;
@@ -607,6 +629,31 @@ int main(int argc, char* argv[]) {
     
     std::string command = argv[1];
     
+    // Handle --validate-config as a special option (before CliHandler parses opts)
+    if (command == "--validate-config") {
+        std::string config_path = "/etc/agi/agi_config.json";
+        if (argc > 2) config_path = argv[2];
+        agi::ConfigManager cm;
+        if (!cm.load(config_path)) {
+            std::cerr << "Configuration error: " << cm.getError() << std::endl;
+            return 1;
+        }
+        if (!cm.validate()) {
+            std::cerr << "Configuration validation failed" << std::endl;
+            return 1;
+        }
+        std::cout << "Configuration is valid: " << config_path << std::endl;
+        const auto& config = cm.getConfig();
+        std::cout << "  Base path: " << config.base_path << std::endl;
+        std::cout << "  Environment count: " << config.environments.size() << std::endl;
+        for (const auto& env : config.environments) {
+            std::cout << "  Environment: " << env.name
+                      << " (template: " << env.os_template
+                      << ", SSH port: " << env.ssh.port << ")" << std::endl;
+        }
+        return 0;
+    }
+    
     // Handle help and version
     if (command == "help" || command == "--help" || command == "-h") {
         agi::CliHandler(argc, argv).showHelp();
@@ -620,7 +667,7 @@ int main(int argc, char* argv[]) {
     
     // Create CLI handler and run
     agi::CliHandler handler(argc, argv);
-    int result = handler.run();
+    int result = handler.run(command);
     
     if (result != 0) {
         return result;
